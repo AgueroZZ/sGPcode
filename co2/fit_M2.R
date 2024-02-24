@@ -1,29 +1,7 @@
 .libPaths( c( .libPaths(), "~/./lib") )
-
-#### PATH:
-working_path <- getwd()
-source_path <- paste0(working_path,"/source/")
-figure_path <- paste0(working_path,"/figures/")
-result_path <- paste0(working_path,"/results/")
-
-library(aghq)
-library(TMB)
-library(Matrix)
-library(xml2)
 library(tidyverse)
-library(mvQuad)
-library(fda)
-library(LaplacesDemon)
-library(mvtnorm)
-library(OSplines)
-library(parallel)
-library(foreach)
-library(doMC)
-library(sGPfit)
-
-source(paste0(source_path, "06_functions_seasonal.R"))
-compile(paste0(source_path, "00_fixed_Seasonal_CO2.cpp"))
-dyn.load(dynlib(paste0(source_path,"00_fixed_Seasonal_CO2")))
+library(BayesGP)
+set.seed(123)
 
 
 ### Read in the full data:
@@ -44,12 +22,11 @@ co2s$timeYears = round(as.numeric(co2s$day - timeOrigin)/365.25,
 co2s$dayInt = as.integer(co2s$day)
 allDays = seq(from = min(co2s$day), to = max(co2s$day),
               by = "7 day")
-observed_dataset <- co2s %>% filter(!is.na(co2s$co2)) %>% dplyr::select(c("co2", "timeYears"))
+observed_dataset <- co2s %>% filter(!is.na(co2s$co2)) %>% dplyr::select(c("co2", "timeYears", "day"))
 observed_dataset$quality <- ifelse(co2s$quality > 0, 1, 0)
 # remove low-quality measurements
 observed_dataset <- observed_dataset %>% filter(quality == 0)
-x_grid <- observed_dataset$co2
-n <- length(x_grid)
+train_dataset <- observed_dataset %>% filter(timeYears < 30)
 
 years_cyl1 <- 1
 years_cyl2 <- 0.5
@@ -68,86 +45,195 @@ a4 = 2*period4*pi
 a5 = 2*period5*pi
 
 d_step <- 10
-prior_set_IWP <- list(a = 0.5, u = 30)
-prior_set_IWP_used <- prior_conversion(d = d_step, prior = prior_set_IWP, p = 3)
+prior_set_IWP <- list(alpha = 0.5, u = 30)
 
-x <- observed_dataset$timeYears
+x_full <- observed_dataset$timeYears
+x <- train_dataset$timeYears
 region <- c(0,max(x))
-k <- 102
 X1 <- as(cbind(cos(a1*x), sin(a1*x)), "dgTMatrix")
 X2 <- as(cbind(cos(a2*x), sin(a2*x)), "dgTMatrix")
 X3 <- as(cbind(cos(a3*x), sin(a3*x)), "dgTMatrix")
 X4 <- as(cbind(cos(a4*x), sin(a4*x)), "dgTMatrix")
 X5 <- as(cbind(cos(a5*x), sin(a5*x)), "dgTMatrix")
 
+# Full data
+all_data = as.data.frame(as.matrix(cbind(X1, X2, X3, X4, X5)))
+all_data = cbind(all_data, train_dataset$co2, train_dataset$timeYears)
+colnames(all_data) <- c("X1_cos", "X1_sin", "X2_cos", "X2_sin", "X3_cos", "X3_sin", "X4_cos", "X4_sin", "X5_cos", "X5_sin", "y", "timeYears")
 
-Q6 <- as(compute_weights_precision(x = seq(0, max(x), length.out = k)), "dgTMatrix")
-B6 <- as(local_poly(knots = seq(0, max(x), length.out = k), refined_x = x, p = 3), "dgTMatrix")
+mod_full <- model_fit(formula = y ~ X1_cos + X1_sin + X2_cos + X2_sin + X3_cos + X3_sin + X4_cos + X4_sin + X5_cos + X5_sin + 
+                   f(timeYears, model = "iwp", order = 3, 
+                     initial_location = "left",
+                     sd.prior = list(param = prior_set_IWP, h = d_step),
+                     knots = seq(min(x_full), max(x_full), length.out = 50)), 
+                 data = all_data, aghq_k = 4, family = "gaussian", M = 6000,
+                 control.family = list(sd.prior = list(param = list(alpha = 0.5, u = 1))))
+summary(mod_full)
+# plot(mod_full)
+save(mod_full, file = "mod_M2.rda")
 
-#### Posterior of alpha:
-### With parallel computation:
-ncores <- detectCores() - 1
-registerDoMC(cores = ncores)
+set.seed(123)
 
-period3_vec <- 1/years_cyl3
-period4_vec <- 1/years_cyl4
-period5_vec <- 1/years_cyl5
+mod_pred_samps <- predict(mod_full, variable = "timeYears",
+        newdata = data.frame(timeYears = x_full), only.samples = T)
 
-period_vec <- expand.grid(period3_vec = period3_vec, period4_vec = period4_vec, period5_vec = period5_vec)
-period_vec$years_cyl3 <- 1/period_vec$period3_vec
-period_vec$years_cyl4 <- 1/period_vec$period4_vec
-period_vec$years_cyl5 <- 1/period_vec$period5_vec
+X1_full <- as(cbind(cos(a1*x_full), sin(a1*x_full)), "dgTMatrix")
+X2_full <- as(cbind(cos(a2*x_full), sin(a2*x_full)), "dgTMatrix")
+X3_full <- as(cbind(cos(a3*x_full), sin(a3*x_full)), "dgTMatrix")
+X4_full <- as(cbind(cos(a4*x_full), sin(a4*x_full)), "dgTMatrix")
+X5_full <- as(cbind(cos(a5*x_full), sin(a5*x_full)), "dgTMatrix")
 
-log_like_vec <- c()
-do_once <- function(i){
-  X <- as(cbind(X1,X2,X3,X4,X5, 1, x, x^2), "dgTMatrix")
-  tmbdat <- list(
-    # Design matrix
-    B = B6,
-    X = X,
-    P = Q6,
-    logPdet = as.numeric(determinant(Q6, logarithm = T)$modulus),
-    # Response
-    y = observed_dataset$co2,
-    # PC Prior params
-    u1 = prior_set_IWP_used$u,
-    alpha1 = prior_set_IWP_used$a,
-    u2 = 1,
-    alpha2 = 0.5,
-    betaprec = 0.001
-  )
-  tmbparams <- list(
-    W = c(rep(0, (ncol(B6) + ncol(X)))), # W = c(U,beta); U = B-Spline coefficients
-    theta1 = 0, # -2log(sigma)
-    theta2 = 0
-  )
-  ff <- TMB::MakeADFun(
-    data = tmbdat,
-    parameters = tmbparams,
-    random = "W",
-    DLL = "00_fixed_Seasonal_CO2",
-    silent = TRUE
-  )
-  ff$he <- function(w) numDeriv::jacobian(ff$gr,w)
-  
-  ## Try two choices of aghq_k, in case numerical failure..
-  fitted_mod_all <- tryCatch(
-    {aghq::marginal_laplace_tmb(ff,4,c(0,0))}, 
-    error=function(e) {
-      message(paste('An Error Occurred at task number', i, "...", "Trying a lower aghq_k..."))
-      aghq::marginal_laplace_tmb(ff,3,c(0,0))
-    }
-  ) 
-  hyper_result <- fitted_mod_all$marginals
-  save(file = paste0(result_path, "fixed_samps/",i,"_hyper_sample.rda"), hyper_result)
-  sGP_samps <- sample_marginal(fitted_mod_all, 3000)
-  save(file = paste0(result_path, "fixed_samps/",i,"_sample.rda"), sGP_samps)
-  cat(paste0("task ", i," just finished with success: \n"))
-  cat(paste0("task ", i," has lognormconst being ",fitted_mod_all$normalized_posterior$lognormconst, ".\n"))
-  fitted_mod_all$normalized_posterior$lognormconst
+X_full <- as.data.frame(as.matrix(cbind(X1_full, X2_full, X3_full, X4_full, X5_full)))
+fixed_pred_samps <- as.matrix(X_full) %*% as.matrix(mod_full$samps$samps[unlist(mod_full$fixed_samp_indexes)[-1],])
+
+sd_noise <- 1/exp(0.5*mod_full$samps$theta[,2])
+noise_pred <- matrix(nrow = nrow(mod_pred_samps[,-1]), ncol = ncol(mod_pred_samps[,-1]))
+for (ii in 1:length(sd_noise)) {
+  noise_pred[,ii] <- rnorm(n = 2323, sd = sd_noise[ii])
 }
-log_like_vec <- foreach(i = 1:nrow(period_vec), .combine='c', .packages = c('foreach', 'stats', 'OSplines', 'fda', 'aghq', 'LaplacesDemon')) %do% do_once(i)
+
+M2_pred <- mod_pred_samps[,-1] + fixed_pred_samps + noise_pred
+mod_pred <- data.frame(timeYears = x_full, lower = apply(M2_pred, 1, quantile, probs = 0.1), 
+                       med = apply(M2_pred, 1, quantile, probs = 0.5), 
+                       mean = apply(M2_pred, 1, mean),
+                       upper = apply(M2_pred, 1, quantile, probs = 0.9))
+
+mod_pred$timeYears = observed_dataset$day
+
+png(filename = "fit_M2.png", width = 800, height = 800)
+plot(mod_pred$med ~ mod_pred$timeYears, 
+     type = "l", col = "blue", lwd = 1, 
+     xlab = "Years", 
+     ylab = "CO2 concentration", ylim = c(200, 620),
+     cex.lab = 1.5, cex.axis = 2.0, cex.main = 1.5, cex.sub = 1.5)
+lines(mod_pred$lower ~ mod_pred$timeYears, col = "red", lwd = 1, lty = 2)
+lines(mod_pred$upper ~ mod_pred$timeYears, col = "red", lwd = 1, lty = 2)
+points(observed_dataset$day, observed_dataset$co2, 
+       pch = 16, col = "black", cex = 0.2)
+abline(v = max(train_dataset$day), col = "purple", lty = "dashed")
+dev.off()
+
+pdf(file = "fit_M2.pdf", width = 8, height = 6)
+plot(mod_pred$med ~ mod_pred$timeYears, 
+     type = "l", col = "blue", lwd = 1, 
+     xlab = "Years", 
+     ylab = "CO2 concentration", ylim = c(200, 620),
+     cex.lab = 1.5, cex.axis = 2.0, cex.main = 1.5, cex.sub = 1.5)
+lines(mod_pred$lower ~ mod_pred$timeYears, col = "red", lwd = 1, lty = 2)
+lines(mod_pred$upper ~ mod_pred$timeYears, col = "red", lwd = 1, lty = 2)
+points(observed_dataset$day, observed_dataset$co2, 
+       pch = 16, col = "black", cex = 0.2)
+abline(v = max(train_dataset$day), col = "purple", lty = "dashed")
+dev.off()
 
 
 
+### Compute training MSE and CPR
+mod_pred_train <- mod_pred %>% filter(timeYears <= max(train_dataset$day))
+sqrt(mean((mod_pred_train$mean - train_dataset$co2)^2))
+# 0.6054007
+mean((mod_pred_train$lower <= train_dataset$co2) & (train_dataset$co2 <= mod_pred_train$upper))
+# 0.8214286
+
+### Compute test rMSE and CPR
+mod_pred_test <- mod_pred %>% filter(timeYears > max(train_dataset$day))
+test_data <- observed_dataset %>% filter(timeYears > max(train_dataset$timeYears))
+sqrt(mean((mod_pred_test$mean - test_data$co2)^2))
+# 43.85931
+mean((mod_pred_test$lower <= test_data$co2) & (test_data$co2 <= mod_pred_test$upper))
+# 0.995687
+
+
+
+
+#### Each component:
+x_refined <- seq(from = min(observed_dataset$timeYears), to = max(observed_dataset$timeYears), by = 1/365.25)
+X1_refined <- as(cbind(cos(a1*x_refined), sin(a1*x_refined)), "dgTMatrix")
+X2_refined <- as(cbind(cos(a2*x_refined), sin(a2*x_refined)), "dgTMatrix")
+X3_refined <- as(cbind(cos(a3*x_refined), sin(a3*x_refined)), "dgTMatrix")
+X4_refined <- as(cbind(cos(a4*x_refined), sin(a4*x_refined)), "dgTMatrix")
+X5_refined <- as(cbind(cos(a5*x_refined), sin(a5*x_refined)), "dgTMatrix")
+
+X_refined <- as.data.frame(as.matrix(cbind(X1_refined, X2_refined, X3_refined, X4_refined, X5_refined)))
+fixed_pred_samps_refined <- as.matrix(X_refined) %*% as.matrix(mod_full$samps$samps[unlist(mod_full$fixed_samp_indexes)[-1],])
+
+M2_pred_seasonal <- fixed_pred_samps_refined
+mod_pred_seasonal <- data.frame(timeYears = x_refined, 
+                                lower = apply(M2_pred_seasonal, 1, quantile, probs = 0.1), 
+                                med = apply(M2_pred_seasonal, 1, quantile, probs = 0.5), 
+                                mean = apply(M2_pred_seasonal, 1, mean),
+                                upper = apply(M2_pred_seasonal, 1, quantile, probs = 0.9))
+
+mod_pred_seasonal$timeYears = mod_pred_seasonal$timeYears * 365.25 + timeOrigin
+
+png(filename = "seasonal_M2.png", width = 800, height = 800)
+plot(mod_pred_seasonal$mean ~ mod_pred_seasonal$timeYears, 
+     type = "l", col = "blue", lwd = 1, 
+     xlab = "Years", 
+     ylab = "",
+     ylim = c(-10,10),
+     # xlim = as.Date(c("1980-01-01","2020-01-01")),
+     cex.lab = 1.5, cex.axis = 2.0, cex.main = 1.5, cex.sub = 1.5)
+# polygon(c(mod_pred_seasonal$timeYears, rev(mod_pred_seasonal$timeYears)), 
+#         c(mod_pred_seasonal$lower, rev(mod_pred_seasonal$upper)), 
+#         col = rgb(1, 0, 0, 0.3), border = NA)
+lines(mod_pred_seasonal$lower ~ mod_pred_seasonal$timeYears, col = "red", lwd = 1, lty = 2)
+lines(mod_pred_seasonal$upper ~ mod_pred_seasonal$timeYears, col = "red", lwd = 1, lty = 2)
+abline(v = max(train_dataset$day), col = "purple", lty = "dashed")
+dev.off()
+
+png(filename = "seasonal_M2_zoomed.png", width = 800, height = 800)
+plot(mod_pred_seasonal$mean ~ mod_pred_seasonal$timeYears, 
+     type = "l", col = "blue", lwd = 1, 
+     xlab = "Years", 
+     ylab = "",
+     ylim = c(-10,10),
+     xlim = as.Date(c("1980-01-01","2010-01-01")),
+     cex.lab = 2.0, cex.axis = 2.0, cex.main = 1.5, cex.sub = 1.5)
+# polygon(c(mod_pred_seasonal$timeYears, rev(mod_pred_seasonal$timeYears)), 
+#         c(mod_pred_seasonal$lower, rev(mod_pred_seasonal$upper)), 
+#         col = rgb(1, 0, 0, 0.3), border = NA)
+lines(mod_pred_seasonal$lower ~ mod_pred_seasonal$timeYears, col = "red", lwd = 1, lty = 2)
+lines(mod_pred_seasonal$upper ~ mod_pred_seasonal$timeYears, col = "red", lwd = 1, lty = 2)
+abline(v = max(train_dataset$day), col = "purple", lty = "dashed")
+dev.off()
+
+
+mod_pred_refined <- predict(mod_full, variable = "timeYears",
+                          newdata = data.frame(timeYears = x_refined),
+                          quantiles = c(0.1, 0.5, 0.9))
+mod_pred_refined$timeYears = mod_pred_refined$timeYears * 365.25 + timeOrigin
+
+
+png(filename = "trend_M2.png", width = 800, height = 800)
+plot(mod_pred_refined$mean ~ mod_pred_refined$timeYears, 
+     type = "l", col = "blue", lwd = 1, 
+     xlab = "Years", 
+     ylab = "",
+     ylim = c(280,480),
+     cex.lab = 2.0, cex.axis = 2.0, cex.main = 1.5, cex.sub = 1.5)
+lines(mod_pred_refined$q0.1 ~ mod_pred_refined$timeYears, col = "red", lwd = 1, lty = 2)
+lines(mod_pred_refined$q0.9 ~ mod_pred_refined$timeYears, col = "red", lwd = 1, lty = 2)
+abline(v = max(train_dataset$day), col = "purple", lty = "dashed")
+dev.off()
+
+
+mod_pred_refined_deriv <- predict(mod_full, variable = "timeYears",
+                                  newdata = data.frame(timeYears = x_refined),
+                                  deriv = 1,
+                                  quantiles = c(0.1, 0.5, 0.9))
+mod_pred_refined_deriv$timeYears = mod_pred_refined_deriv$timeYears * 365.25 + timeOrigin
+
+
+png(filename = "trend_deriv_M2.png", width = 800, height = 800)
+plot(mod_pred_refined_deriv$mean ~ mod_pred_refined_deriv$timeYears, 
+     type = "l", col = "blue", lwd = 1, 
+     xlab = "Years", 
+     ylab = "",
+     ylim = c(-5,8),
+     cex.lab = 1.5, cex.axis = 2.0, cex.main = 1.5, cex.sub = 1.5)
+lines(mod_pred_refined_deriv$q0.1 ~ mod_pred_refined_deriv$timeYears, col = "red", lwd = 1, lty = 2)
+lines(mod_pred_refined_deriv$q0.9 ~ mod_pred_refined_deriv$timeYears, col = "red", lwd = 1, lty = 2)
+abline(v = max(train_dataset$day), col = "purple", lty = "dashed")
+dev.off()
 

@@ -13,4 +13,4 @@ The examples in the main paper are replicated in the following scripts. Specific
 1. In each example, please make sure the working directory is correctly specified.
 2. All the required R packages will be loaded in the R script, please make sure they are installed in the system before proceed.
 
-The results in the paper are reproduced by compiling each of the R script (please make sure each cpp file is compiled before running the R script in the corrsponding folder).
+The results in the paper are reproduced by compiling each of the R script (please make sure each cpp file is compiled before running the R script in the corresponding folder).
