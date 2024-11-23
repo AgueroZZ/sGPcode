@@ -37,10 +37,10 @@ Compute_Q_sB <- function(a,k,region, accuracy = 0.01, boundary = TRUE){
   Bsin <- as(apply(Bmatrix, 2, function(x) x*sin_matrix), "dgCMatrix")
   B1sin <- as(apply(B1matrix, 2, function(x) x*sin_matrix), "dgCMatrix")
   B2sin <- as(apply(B2matrix, 2, function(x) x*sin_matrix), "dgCMatrix")
-  
+
   ### Compute I, L, T:
   Numerical_I <- as(diag(c(diff(c(0,x)))), "dgCMatrix")
-  
+
   ### T
   T00 <- t(Bcos) %*% Numerical_I %*% Bcos
   T10 <- t(B1cos) %*% Numerical_I %*% Bcos
@@ -48,7 +48,7 @@ Compute_Q_sB <- function(a,k,region, accuracy = 0.01, boundary = TRUE){
   T20 <- t(B2cos) %*% Numerical_I %*% Bcos
   T21 <- t(B2cos) %*% Numerical_I %*% B1cos
   T22 <- t(B2cos) %*% Numerical_I %*% B2cos
-  
+
   ### L
   L00 <- t(Bsin) %*% Numerical_I %*% Bsin
   L10 <- t(B1sin) %*% Numerical_I %*% Bsin
@@ -56,7 +56,7 @@ Compute_Q_sB <- function(a,k,region, accuracy = 0.01, boundary = TRUE){
   L20 <- t(B2sin) %*% Numerical_I %*% Bsin
   L21 <- t(B2sin) %*% Numerical_I %*% B1sin
   L22 <- t(B2sin) %*% Numerical_I %*% B2sin
-  
+
   ### I
   I00 <- t(Bsin) %*% Numerical_I %*% Bcos
   I10 <- t(B1sin) %*% Numerical_I %*% Bcos
@@ -64,30 +64,28 @@ Compute_Q_sB <- function(a,k,region, accuracy = 0.01, boundary = TRUE){
   I20 <- t(B2sin) %*% Numerical_I %*% Bcos
   I21 <- t(B2sin) %*% Numerical_I %*% B1cos
   I22 <- t(B2sin) %*% Numerical_I %*% B2cos
-  
+
   ## G = <phi,phj>
   G <- rbind(cbind(T00, t(I00)), cbind(I00,L00))
-  
+
   ## C = <D^2phi,D^2phj>
   C11 <- T22 - 2*a*ss(I21) - (a^2)*ss(T20) + 2*(a^3)*ss(I10) + 4 * (a^2) * L11 + (a^4)*T00
   C22 <- L22 + 2*a*ss(I21) - (a^2)*ss(L20) - 2*(a^3)*ss(I10) + 4 * (a^2) * T11 + (a^4)*L00
   C12 <- I22 + 2*a*T21 - (a^2)* ss(I20) - 2*a*t(L21) - 4*(a^2)*I11 + 2*(a^3)*L10 - 2*(a^3)*t(T10) + (a^4)*I00
   C <- rbind(cbind(C11,C12), cbind(t(C12), C22))
-  
+
   ## M = <phi,D^2phj>
   M11 <- t(T20) - (2*a)*t(I10) - (a^2)*T00
   M12 <- t(I20) + (2*a)*t(T10) - (a^2)*I00
   M21 <- t(I20) - (2*a)*t(L10) - (a^2)*I00
   M22 <- t(L20) + (2*a)*t(I10) - (a^2)*L00
   M <- rbind(cbind(M11,M12), cbind(M21, M22))
-  
-  
+
+
   ### Compute the final precision matrix: Q
   Q <- (a^4)*G + C + (a^2)*ss(M)
   forceSymmetric(Q)
 }
-
-
 
 
 ## Construct Design matrix with sB spline basis:
@@ -161,7 +159,7 @@ compute_matrix_given_cov <- function(from, to, m, K){
 }
 
 
-## Simulate (any) gaussian process given (any) SPD covariance function 
+## Simulate (any) gaussian process given (any) SPD covariance function
 gaussprocess <- function(from = 0, to = 1, K = function(s, t) {min(s, t)},
                          start = 0, m = 1000) {
   # Simulates a Gaussian process with a given kernel
@@ -179,17 +177,17 @@ gaussprocess <- function(from = 0, to = 1, K = function(s, t) {min(s, t)},
   # return:
   #   A data.frame with variables "t" for the time index and "xt" for the value
   #   of the process
-  
+
   t <- seq(from = from, to = to, length.out = m)
   Sigma <- sapply(t, function(s1) {
     sapply(t, function(s2) {
       K(s1, s2)
     })
   })
-  
+
   path <- mvrnorm(mu = rep(0, times = m), Sigma = Sigma)
   path <- path - path[1] + start  # Must always start at "start"
-  
+
   return(data.frame("t" = t, "xt" = path))
 }
 
@@ -216,7 +214,7 @@ joint_prec_construct <- function(t_vec, a, sd){
   Blist <- list()
   AClist <- list()
   Clist <- list()
-  
+
   ### Construct transition matrix:
   M_construct <- function(t0, t1, a){
     M <- matrix(nrow = 2, ncol = 2)
@@ -227,7 +225,7 @@ joint_prec_construct <- function(t_vec, a, sd){
     M[2,2] <- cos(a*d)
     M
   }
-  
+
   ### Construct Sig matrix:
   Sig_construct <- function(t0, t1, a, sd){
     Sig <- matrix(nrow = 2, ncol = 2)
@@ -242,32 +240,32 @@ joint_prec_construct <- function(t_vec, a, sd){
     Ci <- forceSymmetric(solve(Sig_construct(t0 = t_vec[i], t1 = t_vec[i+1], a, sd)))
     Ci
   }
-  
+
   Compute_Ai <- function(t_vec, i, Ci) {
     Ti <- M_construct(t0 = t_vec[i], t1 = t_vec[i+1], a)
     t(Ti) %*% Ci %*% Ti
   }
-  
+
   Compute_Bi <- function(t_vec, i, Ci) {
     Ti <- M_construct(t0 = t_vec[i], t1 = t_vec[i+1], a)
     -t(Ti) %*% Ci
   }
-  
+
   for (i in 1:(n - 1)) {
     Clist[[i]] <- Compute_Ci(t_vec = t_vec, i = i)
   }
-  
+
   for (i in 2:(n - 1)) {
     AClist[[i]] <- Compute_Ai(t_vec = t_vec, i = i, Ci = Clist[[i]]) + Clist[[i-1]]
   }
-  
-  AClist[[1]] <- Compute_Ai(t_vec = t_vec, i = 1, Ci = Clist[[1]]) + Compute_Ci(t_vec = c(0,t_vec[1]), i = 1) 
+
+  AClist[[1]] <- Compute_Ai(t_vec = t_vec, i = 1, Ci = Clist[[1]]) + Compute_Ci(t_vec = c(0,t_vec[1]), i = 1)
   AClist[[n]] <- Compute_Ci(t_vec = t_vec, i = (n - 1))
-  
+
   for (i in 1:(n - 1)) {
     Blist[[i]] <- Compute_Bi(t_vec = t_vec, i = i, Ci = Clist[[i]])
   }
-  
+
   Qlist <- list()
   Q <- matrix(0, nrow = 0, ncol = n*2)
   for (i in 1:(n-1)) {

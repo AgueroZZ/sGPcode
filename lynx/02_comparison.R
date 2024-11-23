@@ -128,4 +128,62 @@ mean(abs((test_data$logy - full_summary$mean[-c(1:80)])))
 
 
 
+### ARIMA(2,1,0) Model
+library(forecast)
+test_data <- data[-c(1:80),]
+arima_model <- arima(data_reduced$logy, order = c(2,1,0))
+forecasted <- forecast(arima_model, h = nrow(test_data))
+predicted_logy <- forecasted$mean
+predicted_y <- exp(predicted_logy)
+fitted_values <- fitted(arima_model)
+data_combined <- rbind(
+  data.frame(year = data_reduced$year, logy = data_reduced$logy, source = "Training"),
+  data.frame(year = test_data$year, logy = test_data$logy, source = "Test"),
+  data.frame(year = test_data$year, logy = predicted_logy, source = "Prediction")
+)
+fitted_and_forecasted <- c(fitted_values, as.numeric(forecasted$mean))
+combined_years <- c(data_reduced$year, test_data$year)
+combined_upper <- c(rep(NA, length(fitted_values)), forecasted$upper[, 2])
+combined_lower <- c(rep(NA, length(fitted_values)), forecasted$lower[, 2])
+
+# Plot the observed data
+pdf(file = paste0(figure_path, "lynx_log_predict_compare_arima_fixed.pdf"), height = 5, width = 5)
+plot(logy ~ year, data = data_combined[data_combined$source == "Training", ], 
+     type = "p", xlab = "Year", ylab = "Lynx (log)", 
+     xlim = c(1820, 1940), ylim = c(0, 15), 
+     col = "black",
+     main = "ARIMA(2,1,0) Model")
+lines(combined_years, fitted_and_forecasted, col = "blue", lwd = 1.5)
+lines(combined_years, combined_upper, col = "red", lty = "dashed")
+lines(combined_years, combined_lower, col = "red", lty = "dashed")
+points(logy ~ year, data = data_combined[data_combined$source == "Test", ], 
+       col = "black")
+abline(v = 1900, col = "purple", lty = "dashed")
+dev.off()
+
+### auto-ARIMA Model
+arima_model <- auto.arima(data_reduced$logy, ic = "aic")
+forecasted <- forecast(arima_model, h = nrow(test_data))
+predicted_logy <- forecasted$mean
+predicted_y <- exp(predicted_logy)
+fitted_and_forecasted <- c(fitted_values, as.numeric(forecasted$mean))
+combined_years <- c(data_reduced$year, test_data$year)
+combined_upper <- c(rep(NA, length(fitted_values)), forecasted$upper[, 2])
+combined_lower <- c(rep(NA, length(fitted_values)), forecasted$lower[, 2])
+
+pdf(file = paste0(figure_path, "lynx_log_predict_compare_arima_auto.pdf"), height = 5, width = 5)
+plot(logy ~ year, data = data_combined[data_combined$source == "Training", ], 
+     type = "p", xlab = "Year", ylab = "Lynx (log)", 
+     xlim = c(1820, 1940), ylim = c(0, 15), 
+     col = "black",
+     main = "ARIMA(4,0,1) Model from `auto.arima`")
+lines(combined_years, fitted_and_forecasted, col = "blue", lwd = 1.5)
+lines(combined_years, combined_upper, col = "red", lty = "dashed")
+lines(combined_years, combined_lower, col = "red", lty = "dashed")
+points(logy ~ year, data = data_combined[data_combined$source == "Test", ], 
+       col = "black")
+abline(v = 1900, col = "purple", lty = "dashed")
+dev.off()
+
+
 
