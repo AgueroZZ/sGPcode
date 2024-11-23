@@ -5,7 +5,7 @@ The online web-page of the manuscript "Efficient Modeling of Quasi-Periodic Data
 
 - **Section 4.1, 4.2, 4.3, 4.5**: Datasets are automatically accessed or downloaded in the R scripts.
 
-- **Section 4.4 **: The dataset is downloaded from https://www.sidc.be/silso/.
+- **Section 4.4**: The dataset is downloaded from https://www.sidc.be/silso/.
 
 ## Scripts
 
