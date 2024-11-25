@@ -35,8 +35,8 @@ fit_once <- function(u, alpha){
   return(pred_g1)
 }
 
-alpha = 0.01
-u_vec = c(0.1, 0.3, 0.5, 0.7, 0.9, 1)
+alpha = 0.5
+u_vec = c(0.05,0.1,0.15,0.2,0.25)
 pred_summary <- lapply(u_vec, fit_once, alpha = alpha)
 pred_first_moment <- do.call(rbind, lapply(pred_summary, function(x) x[,-1] %>% apply(1, mean)))
 pred_second_moment <- do.call(rbind, lapply(pred_summary, function(x) x[,-1]^2 %>% apply(1, mean)))
@@ -49,9 +49,6 @@ dev.off()
 pdf(paste0(figure_path,"lynx_sensitivity_second.pdf"), width = 5, height = 5)
 matplot(data$year, t(pred_second_moment), col = 1:length(u_vec), lty = 1:length(u_vec), type = 'l',
         xlab = "Year", ylab = "Post Second Moment", cex = 1.5)
-legend("topleft", legend = paste("u =", u_vec), col = 1:length(u_vec), lty = 1:length(u_vec), cex = 1)
+legend("topleft", legend = paste(u_vec), col = 1:length(u_vec), lty = 1:length(u_vec), cex = 1,
+       title = "Prior Median")
 dev.off()
-
-
-
-

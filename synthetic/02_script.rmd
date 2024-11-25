@@ -137,7 +137,6 @@ Plot the rMSE and coverage rate as a function of `u` for different `alpha`
 load("output/sensitivity_u_alpha_easy.RData")
 true_f_vec <- true_f(location_of_interest)
 pdf(file = "output/figures/sensitivity_u_alpha_easy_mse.pdf", width = 5, height = 5)
-
 plot(alpha_0.05$u, sqrt(alpha_0.05$mse), type = "l", 
      log = "x",
      col = 1, lwd = 2, xlab = "u", 
@@ -156,7 +155,6 @@ lines(alpha_0.1$u, sqrt(alpha_0.1$mse), col = 2, lwd = 2, lty = 2)
 lines(alpha_0.3$u, sqrt(alpha_0.3$mse), col = 3, lwd = 2, lty = 3)
 lines(alpha_0.5$u, sqrt(alpha_0.5$mse), col = 4, lwd = 2, lty = 4)
 legend("topright", title = "Prob", legend = c(0.05, 0.1, 0.3, 0.5), col = 1:4, lty = 1:4, lwd = 2, text.font = 2, title.cex = 1.2, cex = 1.2)
-
 dev.off()
 ```
 
@@ -173,21 +171,17 @@ plot(alpha_0.05$u, alpha_0.05$coverage, type = "l",
      font.lab = 2,   # Bold axis labels
      font = 2,       # Bold text in plot
      cex.axis = 1.2) # Adjust axis tick size
-     
 # Customize x-axis ticks
 axis(1, at = c(0.005, 0.01, 0.05, 0.1, 0.5, 1, 2), 
      labels = c("0.005", "0.01", "0.05", "0.1", "0.5", "1", "2"),
      cex.axis = 1.2,  # Adjust tick label size
      font.axis = 2)   # Bold tick labels
-
 # Add lines
 lines(alpha_0.1$u, alpha_0.1$coverage, col = 2, lwd = 2, lty = 2)
 lines(alpha_0.3$u, alpha_0.3$coverage, col = 3, lwd = 2, lty = 3)
 lines(alpha_0.5$u, alpha_0.5$coverage, col = 4, lwd = 2, lty = 4)
-
 # Add horizontal line at 0.95
 abline(h = 0.95, col = "purple", lty = 5)
-
 # Add legend
 legend("bottomright", 
        legend = c(0.05, 0.1, 0.3, 0.5), 
@@ -198,7 +192,48 @@ legend("bottomright",
        title = "Prob",   # Add legend title
        title.cex = 1.2,  # Adjust legend title size
        cex = 1.2)        # Adjust legend text size
+dev.off()
+```
 
+Eventually different `alpha` can still be written into different choices of `u` in the prior since the exponential distribution is characterized by a single parameter.
+
+```{r}
+load("output/sensitivity_u_alpha_easy.RData")
+true_f_vec <- true_f(location_of_interest)
+alpha_0.05$median <- convert_prior_median(alpha_0.05$u, 0.05)
+alpha_0.1$median <- convert_prior_median(alpha_0.1$u, 0.1)
+alpha_0.3$median <- convert_prior_median(alpha_0.3$u, 0.3)
+alpha_0.5$median <- convert_prior_median(alpha_0.5$u, 0.5)
+
+# merge them into a dataframe with mse, coverage and median
+sensitivity_df <- rbind(alpha_0.05, alpha_0.1, alpha_0.3, alpha_0.5)
+sensitivity_df <- sensitivity_df %>% arrange(median)
+  
+pdf(file = "output/figures/sensitivity_median_easy_mse.pdf", width = 5, height = 5)
+plot(sensitivity_df$median, sqrt(sensitivity_df$mse), type = "l", 
+     log = "x",
+     col = 1, lwd = 2, xlab = "median", 
+     lty = 1, 
+     ylim = c(0.05,0.2),
+     ylab = "rMSE",
+     cex.lab = 1.2, 
+     font.lab = 2,
+     font = 2, 
+     cex.axis = 1.2)
+dev.off()
+
+pdf(file = "output/figures/sensitivity_median_easy_cov.pdf", width = 5, height = 5)
+plot(sensitivity_df$median, sensitivity_df$coverage, type = "l", 
+     log = "x",
+     ylim = c(0.2, 1),
+     col = 1, lwd = 2, xlab = "median", 
+     lty = 1,
+     ylab = "Coverage Rate",
+     cex.lab = 1.2,  # Adjust axis label size
+     font.lab = 2,   # Bold axis labels
+     font = 2,       # Bold text in plot
+     cex.axis = 1.2) # Adjust axis tick size
+abline(h = 0.95, col = "purple", lty = 5)
 dev.off()
 ```
 
@@ -372,6 +407,90 @@ legend("bottomright",
 
 dev.off()
 ```
+
+Eventually different `alpha` can still be written into different choices of `u` in the prior since the exponential distribution is characterized by a single parameter.
+
+```{r}
+load("output/sensitivity_u_alpha_hard.RData")
+true_f_vec <- true_f(location_of_interest)
+alpha_0.05$median <- convert_prior_median(alpha_0.05$u, 0.05)
+alpha_0.1$median <- convert_prior_median(alpha_0.1$u, 0.1)
+alpha_0.3$median <- convert_prior_median(alpha_0.3$u, 0.3)
+alpha_0.5$median <- convert_prior_median(alpha_0.5$u, 0.5)
+
+# merge them into a dataframe with mse, coverage and median
+sensitivity_df2 <- rbind(alpha_0.05, alpha_0.1, alpha_0.3, alpha_0.5)
+sensitivity_df2 <- sensitivity_df2 %>% arrange(median)
+
+pdf(file = "output/figures/sensitivity_median_hard_mse.pdf", width = 5, height = 5)
+plot(sensitivity_df2$median, sqrt(sensitivity_df2$mse), type = "l", 
+     log = "x",
+     col = 1, lwd = 2, xlab = "median", 
+     lty = 1, 
+     ylim = c(0.1,1),
+     ylab = "rMSE",
+     cex.lab = 1.2, 
+     font.lab = 2,
+     font = 2, 
+     cex.axis = 1.2)
+dev.off()
+
+pdf(file = "output/figures/sensitivity_median_hard_cov.pdf", width = 5, height = 5)
+plot(sensitivity_df2$median, sensitivity_df2$coverage, type = "l", 
+     log = "x",
+     ylim = c(0.2, 1),
+     col = 1, lwd = 2, xlab = "median", 
+     lty = 1,
+     ylab = "Coverage Rate",
+     cex.lab = 1.2,  # Adjust axis label size
+     font.lab = 2,   # Bold axis labels
+     font = 2,       # Bold text in plot
+     cex.axis = 1.2) # Adjust axis tick size
+abline(h = 0.95, col = "purple", lty = 5)
+dev.off()
+```
+
+Finally, let's put the sensitivity by median plots for the two settings in the same figure, with different colors:
+
+```{r}
+pdf(file = "output/figures/sensitivity_median_mse.pdf", width = 5, height = 5)
+# using base R
+plot(sensitivity_df$median, sqrt(sensitivity_df$mse), type = "l", 
+     log = "x",
+     col = 1, lwd = 2, xlab = "prior median", 
+     lty = 1, 
+     ylim = c(0,1),
+     ylab = "rMSE",
+     cex.lab = 1.2, 
+     font.lab = 2,
+     font = 2, 
+     cex.axis = 1.2)
+lines(sensitivity_df2$median, sqrt(sensitivity_df2$mse), col = 2, lwd = 2, lty = 2)
+legend("topright", title = "Setting", legend = c("Easy (A)", "Hard (B)"), col = 1:2, lty = 1:2, lwd = 2, text.font = 2, title.cex = 1.2, cex = 1.2)
+dev.off()
+
+pdf(file = "output/figures/sensitivity_median_cov.pdf", width = 5, height = 5)
+plot(sensitivity_df$median, sensitivity_df$coverage, type = "l", 
+     log = "x",
+     ylim = c(0.2, 1),
+     col = 1, lwd = 2, xlab = "prior median", 
+     lty = 1,
+     ylab = "Coverage Rate",
+     cex.lab = 1.2,  # Adjust axis label size
+     font.lab = 2,   # Bold axis labels
+     font = 2,       # Bold text in plot
+     cex.axis = 1.2) # Adjust axis tick size
+lines(sensitivity_df2$median, sensitivity_df2$coverage, col = 2, lwd = 2, lty = 2)
+abline(h = 0.95, col = "purple", lty = 5)
+legend("bottomright", title = "Setting", legend = c("Easy (A)", "Hard (B)"), col
+= 1:2, lty = 1:2, lwd = 2, text.font = 2, title.cex = 1.2, cex = 1.2)
+dev.off()
+```
+
+
+
+
+
 
 
 

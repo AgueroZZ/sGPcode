@@ -1,3 +1,9 @@
+convert_prior_median <- function(u, alpha){
+  INLA::inla.pc.qprec(u=u, alpha=alpha, p=0.5)^(-0.5)
+}
+convert_prior_median <- Vectorize(convert_prior_median)
+
+
 simulate_data_poisson <- function(func, n = 500, sigma = 1, region = c(0,10), offset = 0, spacing = "random"){
   # Simulate the data
   if(spacing == "random"){

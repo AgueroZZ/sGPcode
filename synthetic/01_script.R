@@ -1,336 +1,325 @@
 library(BayesGP)
+library(sGPfit)
 library(tidyverse)
 library(parallel)
 source("code/functions.R")
 
-n <- 500
 location_of_interest <- seq(0, 10, length.out = 500)
-true_f <- function(x) sin(0.5* 2 * pi * x) * log(1 + x)
+true_f <- function(x) sin(0.5 * 2 * pi * x) * log(1 + x)
+
+n_vec <- c(100, 200, 300, 500, 800, 1000, 2000, 3000, 5000)
+time_vec <- numeric(length(n_vec))
+num_replicate <- 10
+
+## runtime <- matrix(NA, nrow = length(n_vec), ncol = num_replicate)
+## for(i in 1:length(n_vec)){
+##   data <- simulate_data_poisson(func = true_f, n = n_vec[i], sigma = 0.5, region = c(0,10), offset = 2, spacing = "equal")
+##   result <- microbenchmark::microbenchmark(
+##     mod <- BayesGP::model_fit(y ~ f(x, model = "sgp", freq = 1/2,
+##                                     k = (30/3), # 10 knots to 30 basis!
+##                                     range = c(0, 10),
+##                                     sd.prior = list(param = 1, h = 1)) +
+##                               f(index, model = "iid", sd.prior = 1),
+##                               data = data,
+##                               family = "Poisson"),
+##     times = num_replicate
+##   )
+##   runtime[i, ] <- result$time/1e9
+## }
+## save(runtime, file = "output/runtime_FEM.RData")
+
+## runtime <- matrix(NA, nrow = length(n_vec), ncol = num_replicate)
+## for(i in 1:length(n_vec)){
+##   data <- simulate_data_poisson(func = true_f, n = n_vec[i], sigma = 0.5, region = c(0,10), offset = 2, spacing = "equal")
+##   result <- microbenchmark::microbenchmark(
+##     mod <- BayesGP::model_fit(y ~ f(x, model = "sgp", freq = 1/2,
+##                                     k = (60/3), # 20 knots to 60 basis!
+##                                     range = c(0, 10),
+##                                     sd.prior = list(param = 1, h = 1)) +
+##                               f(index, model = "iid", sd.prior = 1),
+##                               data = data,
+##                               family = "Poisson"),
+##     times = num_replicate
+##   )
+##   runtime[i, ] <- result$time/1e9
+## }
+## save(runtime, file = "output/runtime_FEM2.RData")
+
+## true_f_hard <- function(x){
+##   if(x < 2){
+##     return(2*sin(2 * 2 * pi * x) * (3-x))
+##   } else if (x > 2 && x < 4){
+##     return(2*sin(2 * 2 * pi * x))
+##   } else{
+##     return(2*sin(2 * 2 * pi * x) * (log(x-3) + 1))
+##   }
+## }
+## true_f_hard <- Vectorize(true_f_hard)
+## runtime <- matrix(NA, nrow = length(n_vec), ncol = num_replicate)
+## for(i in 1:length(n_vec)){
+##   data <- simulate_data_poisson(func = true_f_hard, n = n_vec[i], sigma = 0.8, region = c(0,10), offset = 2, spacing = "equal")
+##   result <- microbenchmark::microbenchmark(
+##     mod <- BayesGP::model_fit(y ~ f(x, model = "sgp", freq = 1/2,
+##                                     k = (30/3) # 10 knots to 30 basis!
+##                                     range = c(0, 10),
+##                                     sd.prior = list(param = 1, h = 1)) +
+##                               f(index, model = "iid", sd.prior = 1),
+##                               data = data,
+##                               family = "Poisson"),
+##     times = num_replicate
+##   )
+##   runtime[i, ] <- result$time/1e9
+## }
+## save(runtime, file = "output/runtime_FEM_hard.RData")
+## 
+## runtime <- matrix(NA, nrow = length(n_vec), ncol = num_replicate)
+## for(i in 1:length(n_vec)){
+##   data <- simulate_data_poisson(func = true_f_hard, n = n_vec[i], sigma = 0.8, region = c(0,10), offset = 2, spacing = "equal")
+##   result <- microbenchmark::microbenchmark(
+##     mod <- BayesGP::model_fit(y ~ f(x, model = "sgp", freq = 1/2,
+##                                     k = (60/3), # 20 knots to 60 basis!
+##                                     range = c(0, 10),
+##                                     sd.prior = list(param = 1, h = 1)) +
+##                               f(index, model = "iid", sd.prior = 1),
+##                               data = data,
+##                               family = "Poisson"),
+##     times = num_replicate
+##   )
+##   runtime[i, ] <- result$time/1e9
+## }
+## save(runtime, file = "output/runtime_FEM2_hard.RData")
+
+load("output/runtime_FEM.RData")
+runtime_df <- data.frame(n = n_vec, time = rowMeans(runtime), k = 30)
+ggplot(runtime_df, aes(x = n, y = time)) +
+  geom_point() +
+  geom_line() +
+  labs(x = "Number of Observations", y = "Runtime (s)") +
+  theme_minimal()
+
+# put into the same figure
+load("output/runtime_FEM2.RData")
+runtime_df2 <- data.frame(n = n_vec, time = rowMeans(runtime), k = 60)
+runtime_df_combined <- rbind(runtime_df, runtime_df2)
+
+ggplot(runtime_df_combined, aes(x = n, y = time, color = factor(k))) +
+  geom_point() +
+  geom_line() +
+  labs(x = "Number of Observations", y = "Runtime (s)") +
+  theme_minimal() +
+  theme(
+    legend.title = element_blank(),
+    legend.position = c(0.7, 0.7), 
+    axis.title = element_text(size = 14), # Axis labels text size
+    axis.text = element_text(size = 14, face = "bold"),  # Axis breaks text size
+    legend.text = element_text(size = 15), # Legend labels text size
+  ) +
+  scale_color_discrete(labels = c("k = 30", "k = 60"))
+ggsave("output/figures/runtime_FEM.pdf", width = 5, height = 5)
+
+load("output/runtime_FEM_hard.RData")
+runtime_df <- data.frame(n = n_vec, time = rowMeans(runtime), k = 30)
+ggplot(runtime_df, aes(x = n, y = time)) +
+  geom_point() +
+  geom_line() +
+  labs(x = "Number of Observations", y = "Runtime (s)") +
+  theme_minimal()
+
+# put into the same figure
+load("output/runtime_FEM2_hard.RData")
+runtime_df2 <- data.frame(n = n_vec, time = rowMeans(runtime), k = 60)
+runtime_df_combined <- rbind(runtime_df, runtime_df2)
+
+ggplot(runtime_df_combined, aes(x = n, y = time, color = factor(k))) +
+  geom_point() +
+  geom_line() +
+  labs(x = "Number of Observations", y = "Runtime (s)") +
+  theme_minimal() +
+  theme(
+    legend.title = element_blank(),
+    legend.position = c(0.5, 0.8), 
+    axis.title = element_text(size = 14), # Axis labels text size
+    axis.text = element_text(size = 14, face = "bold"),  # Axis breaks text size
+    legend.text = element_text(size = 15), # Legend labels text size
+  ) +
+  scale_color_discrete(labels = c("k = 30", "k = 60"))
+ggsave("output/figures/runtime_FEM_hard.pdf", width = 5, height = 5)
+
+n <- 500
 set.seed(123)
 data <- simulate_data_poisson(func = true_f, n = n, sigma = 0.5, region = c(0,10), offset = 2, spacing = "equal")
-mean(data$y == 0)
+sorted_data <- data %>% arrange(x)
 
-par(mfrow = c(1,2))
+prior_PSD <- list(u = 1, alpha = 0.5)
+prior_SD <- list(u = prior_PSD$u/compute_d_step_sGPsd(d = 1, a = pi), alpha = prior_PSD$alpha)
+mod_exact <- fit_exact(data, prior_SD)
+samps_exact_overall <- sample_exact(mod_exact, M = 3000)
 
-plot(data$x, data$y, type = "p", col = "black", 
-     pch = 20, cex = 0.5,
-     ylab = "y", xlab = "x")
-lines(location_of_interest, exp(true_f(location_of_interest)), col = "red", lwd = 2)
+samps_exact_overall_df <- data.frame(x = sorted_data$x)
+samps_exact_overall_df$mean <- rowMeans(samps_exact_overall)
+samps_exact_overall_df$second_moment <- rowMeans(samps_exact_overall^2)
+samps_exact_overall_df$lower <- apply(samps_exact_overall, 1, quantile, probs = 0.025)
+samps_exact_overall_df$upper <- apply(samps_exact_overall, 1, quantile, probs = 0.975)
 
-plot(location_of_interest, true_f(location_of_interest),
-     type = "l", col = "black",
-     pch = 20, cex = 0.5,
-     ylab = "y", xlab = "x")
+ggplot(samps_exact_overall_df, aes(x = x)) +
+  geom_ribbon(aes(ymin = lower, ymax = upper), fill = "grey", alpha = 0.5) +
+  geom_line(aes(y = mean), color = "black", linetype = "solid") +
+  geom_line(aes(y = true_f(x)), color = "red", linetype = "dotted") +
+  labs(x = "x", y = "f(x)") +
+  theme_minimal() +
+  guides(fill = FALSE)
 
-par(mfrow = c(1,1))
+samps_approx_df_list <- list()
+k_vec <- c(4, 5, 6, 7, 8, 9, 10, 12, 17, 22, 27, 32, 37)
+num_basis <- 3*(k_vec - 2)
 
+## for (i in 1:length(k_vec)){
+##   mod_approx <- BayesGP::model_fit(y ~ f(x, model = "sgp", freq = 1/2,
+##                                     k = k_vec[i],
+##                                     range = c(0, 10),
+##                                     sd.prior = list(param = 1, h = 1)) +
+##                               f(index, model = "iid", sd.prior = 1),
+##                               data = data,
+##                               family = "Poisson")
+## 
+##   samps_approx <- predict(mod_approx, newdata = data.frame(x = sort(data$x)), only.samples = TRUE, variable = "x", quantiles = NULL, include.intercept = F)
+## 
+##   samps_approx_df_list[[i]] <- data.frame(x = data$x,
+##                                           mean = rowMeans(samps_approx),
+##                                           second_moment = rowMeans(samps_approx^2),
+##                                           lower = apply(samps_approx, 1, quantile, probs = 0.025),
+##                                           upper = apply(samps_approx, 1, quantile, probs = 0.975))
+## 
+## }
+## save(samps_approx_df_list, file = "output/samps_approx_df_list_FEM.RData")
 
-u_vec = c(2, 1, 0.5, 0.1, 0.05, 0.03, 0.01, 0.005)
-model_list <- list()
+load("output/samps_approx_df_list_FEM.RData")
+moment_matrix <- do.call(rbind, lapply(samps_approx_df_list, function(x) x$mean))
+second_moment_matrix <- do.call(rbind, lapply(samps_approx_df_list, function(x) x$second_moment))
 
-for (i in 1:length(u_vec)) {
-  mod <- BayesGP::model_fit(
-    y ~ f(
-      x,
-      model = "sgp",
-      region = c(0,10),
-      freq = 1/2,
-      k = 12,
-      sd.prior = list(param = list(u = u_vec[i], alpha = 0.5), h = 1)
-    ) +
-      f(index, model = "iid", sd.prior = 1),
-    data = data,
-    family = "Poisson"
-  )
-  model_list[[i]] <- mod
-}
+par(mfrow = c(2, 1))
 
-first_moments <- matrix(nrow = length(location_of_interest), ncol = length(model_list))
-second_moments <- matrix(nrow = length(location_of_interest), ncol = length(model_list))
-for (i in 1:length(model_list)) {
-  mod <- model_list[[i]]
-  post_samples <- predict(mod, 
-                          newdata = data.frame(x = location_of_interest),
-                          variable = "x",
-                          only.samples = T,
-                          include.intercept = F)
-  first_moments[,i] <- apply(post_samples, 1, mean)
-  second_moments[,i] <- apply(post_samples^2, 1, mean)
-}
+matplot(data$x, t(moment_matrix), type = "l", lty = 1, col = 1:ncol(moment_matrix), xlab = "x", ylab = "First moment")
+lines(samps_exact_overall_df$x, samps_exact_overall_df$mean, col = "red", lty = 2)
 
-matplot(location_of_interest, first_moments, 
-        type = "l", col = 1:length(u_vec), lwd = 1, lty = 1:length(u_vec), 
-        ylim = c(min(first_moments), max(first_moments) + 3), 
-        ylab = "first moment", xlab = "x")
-legend("topleft", legend = u_vec, col = 1:length(u_vec), lty = 1:length(u_vec))
+matplot(data$x, t(second_moment_matrix), type = "l", lty = 1, col = 1:ncol(second_moment_matrix), xlab = "x", ylab = "Second moment")
+lines(samps_exact_overall_df$x, samps_exact_overall_df$second_moment, col = "red", lty = 2)
 
-matplot(location_of_interest, second_moments,
-        type = "l", col = 1:length(u_vec), lwd = 1, lty = 1:length(u_vec), 
-        ylim = c(min(second_moments), max(second_moments) + 0), 
-        ylab = "second moment", xlab = "x")
-legend("topleft", legend = u_vec, col = 1:length(u_vec), lty = 1:length(u_vec))
+par(mfrow = c(1, 1))
 
+error_to_exact_first_moment <- moment_matrix %>% apply(1, function(x) max((x - samps_exact_overall_df$mean)^2))
+error_to_exact_second_moment <- second_moment_matrix %>% apply(1, function(x) max((x - samps_exact_overall_df$second_moment)^2))
 
-assess_sensitivity_u_given_alpha <- function(u_vec, alpha, level = 0.95, data, location_of_interest, true_f, freq){
-  # return mse_vec, coverage_vec and u_vec, in a data frame
-  mse_vec <- c()
-  coverage_vec <- c()
-  
-  for (i in 1:length(u_vec)) {
-    mod <- BayesGP::model_fit(
-      y ~ f(
-        x,
-        model = "sgp",
-        region = c(0,10),
-        freq = freq,
-        k = 12,
-        sd.prior = list(param = list(u = u_vec[i], alpha = alpha), h = 1)
-      ) +
-        f(index, model = "iid", sd.prior = 1),
-      data = data,
-      family = "Poisson"
-    )
-    res <- compute_mse_coverage(mod, location_of_interest, true_f, level = level)
-    mse_vec <- c(mse_vec, res$mse)
-    coverage_vec <- c(coverage_vec, res$coverage)
-  }
-  
-  return(data.frame(u = u_vec, mse = mse_vec, coverage = coverage_vec))
-}
+error_df <- data.frame(num_basis = num_basis, error_to_exact_first_moment = error_to_exact_first_moment, error_to_exact_second_moment = error_to_exact_second_moment)
 
-alpha_0.05 <- assess_sensitivity_u_given_alpha(u_vec, 0.05, data = data, location_of_interest = location_of_interest, true_f = true_f, freq = 1/2)
-alpha_0.1 <- assess_sensitivity_u_given_alpha(u_vec, 0.1, data = data, location_of_interest = location_of_interest, true_f = true_f, freq = 1/2)
-alpha_0.3 <- assess_sensitivity_u_given_alpha(u_vec, 0.3, data = data, location_of_interest = location_of_interest, true_f = true_f, freq = 1/2)
-alpha_0.5 <- assess_sensitivity_u_given_alpha(u_vec, 0.5, data = data, location_of_interest = location_of_interest, true_f = true_f, freq = 1/2)
-
-save(alpha_0.05, alpha_0.1, alpha_0.3, alpha_0.5, file = "output/sensitivity_u_alpha_easy.RData")
-```
-
-Plot the rMSE and coverage rate as a function of `u` for different `alpha`
-
-```{r}
-load("output/sensitivity_u_alpha_easy.RData")
-true_f_vec <- true_f(location_of_interest)
-pdf(file = "output/figures/sensitivity_u_alpha_easy_mse.pdf", width = 5, height = 5)
-
-plot(alpha_0.05$u, sqrt(alpha_0.05$mse), type = "l", 
-     log = "x",
-     col = 1, lwd = 2, xlab = "u", 
-     lty = 1, 
-     ylim = c(0.05,0.2),
-     xaxt = "n",
-     ylab = "rMSE",
-     cex.lab = 1.2, 
-     font.lab = 2,
-     font = 2, 
-     cex.axis = 1.2)
-axis(1, at = c(0.005, 0.01, 0.05, 0.1, 0.5, 1, 2),
-     cex.axis = 1.2, font.axis = 2,
-     labels = c("0.005", "0.01", "0.05", "0.1", "0.5", "1", "2"))
-lines(alpha_0.1$u, sqrt(alpha_0.1$mse), col = 2, lwd = 2, lty = 2)
-lines(alpha_0.3$u, sqrt(alpha_0.3$mse), col = 3, lwd = 2, lty = 3)
-lines(alpha_0.5$u, sqrt(alpha_0.5$mse), col = 4, lwd = 2, lty = 4)
-legend("topright", title = "Prob", legend = c(0.05, 0.1, 0.3, 0.5), col = 1:4, lty = 1:4, lwd = 2, text.font = 2, title.cex = 1.2, cex = 1.2)
-
-dev.off()
-
-
-
-pdf(file = "output/figures/sensitivity_u_alpha_easy_cov.pdf", width = 5, height = 5)
-plot(alpha_0.05$u, alpha_0.05$coverage, type = "l", 
-     log = "x",
-     ylim = c(0.2, 1),
-     col = 1, lwd = 2, xlab = "u", 
-     lty = 1,
-     xaxt = "n",
-     ylab = "Coverage Rate",
-     cex.lab = 1.2,  # Adjust axis label size
-     font.lab = 2,   # Bold axis labels
-     font = 2,       # Bold text in plot
-     cex.axis = 1.2) # Adjust axis tick size
-
-# Customize x-axis ticks
-axis(1, at = c(0.005, 0.01, 0.05, 0.1, 0.5, 1, 2), 
-     labels = c("0.005", "0.01", "0.05", "0.1", "0.5", "1", "2"),
-     cex.axis = 1.2,  # Adjust tick label size
-     font.axis = 2)   # Bold tick labels
-
-# Add lines
-lines(alpha_0.1$u, alpha_0.1$coverage, col = 2, lwd = 2, lty = 2)
-lines(alpha_0.3$u, alpha_0.3$coverage, col = 3, lwd = 2, lty = 3)
-lines(alpha_0.5$u, alpha_0.5$coverage, col = 4, lwd = 2, lty = 4)
-
-# Add horizontal line at 0.95
-abline(h = 0.95, col = "purple", lty = 5)
-
-# Add legend
-legend("bottomright", 
-       legend = c(0.05, 0.1, 0.3, 0.5), 
-       col = 1:4, 
-       lty = 1:4, 
-       lwd = 2,
-       text.font = 2,    # Bold legend text
-       title = "Prob",   # Add legend title
-       title.cex = 1.2,  # Adjust legend title size
-       cex = 1.2)        # Adjust legend text size
-
-dev.off()
-
-
+# Put them into one plot
+error_df_long <- error_df %>% pivot_longer(cols = c(error_to_exact_first_moment, error_to_exact_second_moment), names_to = "moment", values_to = "error")
+ggplot(error_df_long, aes(x = num_basis, y = error, color = moment)) +
+  geom_point() +
+  geom_line() +
+  labs(x = "Number of Basis Functions", y = "Maximal Error") +
+  theme_minimal() +
+   theme(
+    legend.title = element_blank(),
+    legend.position = c(0.6, 0.6), 
+    axis.title = element_text(size = 14), # Axis labels text size
+    axis.text = element_text(size = 14, face = "bold"),  # Axis breaks text size
+    legend.text = element_text(size = 15), # Legend labels text size
+  ) +
+  scale_color_discrete(labels = c("First Moment", "Second Moment"))
+ggsave("output/figures/error_FEM_convergence.pdf", width = 5, height = 5)
 
 n <- 500
-location_of_interest <- seq(0, 10, length.out = 500)
-true_f <- function(x){
-  if(x < 2){
-    return(2*sin(2 * 2 * pi * x) * (3-x))
-  } else if (x > 2 && x < 4){
-    return(2*sin(2 * 2 * pi * x))
-  } else{
-    return(2*sin(2 * 2 * pi * x) * (log(x-3) + 1))
-  }
-}
-# vectorize the function
-true_f <- Vectorize(true_f)
-
-
 set.seed(123)
-data <- simulate_data_poisson(func = true_f, n = n, sigma = 0.5, region = c(0,10), offset = 0)
-mean(data$y == 0)
+data <- simulate_data_poisson(func = true_f, n = n, sigma = 0.5, region = c(0,10), offset = 2, spacing = "equal")
 
-par(mfrow = c(1,2))
+## ## Runtime of the exact method:
+## result_exact <- microbenchmark::microbenchmark(
+##   fit_exact(data, prior_SD),
+##   times = num_replicate
+## )
+## runtime_exact <- result_exact$time/1e9
+## 
+## ## Runtime of the approximate method:
+## runtime_approx <- matrix(NA, nrow = length(k_vec), ncol = num_replicate)
+## for (i in 1:length(k_vec)){
+##   result_approx <- microbenchmark::microbenchmark(
+##     BayesGP::model_fit(y ~ f(x, model = "sgp", freq = 1/2,
+##                                     k = k_vec[i],
+##                                     range = c(0, 10),
+##                                     sd.prior = list(param = 1, h = 1)) +
+##                               f(index, model = "iid", sd.prior = 1),
+##                               data = data,
+##                               family = "Poisson"),
+##     times = num_replicate
+##   )
+##   runtime_approx[i, ] <- result_approx$time/1e9
+## }
+## save(runtime_exact, runtime_approx, file = "output/runtime_FEM_convergence_n500.RData")
 
-plot(data$x, data$y, type = "p", col = "black", 
-     pch = 20, cex = 0.5,
-     ylab = "y", xlab = "x")
-lines(location_of_interest, exp(true_f(location_of_interest)), col = "red", lwd = 2)
+load("output/runtime_FEM_convergence_n500.RData")
+runtime_df <- data.frame(num_basis = num_basis, time = rowMeans(runtime_approx)/mean(runtime_exact))
+ggplot(runtime_df, aes(x = num_basis, y = time)) +
+  geom_point() +
+  geom_line() +
+  labs(x = "Number of Basis Functions", y = "Relative Runtime") +
+  theme_minimal()
 
-plot(location_of_interest, true_f(location_of_interest),
-     type = "l", col = "black",
-     pch = 20, cex = 0.5,
-     ylab = "y", xlab = "x")
+n <- 1000
+set.seed(123)
+data <- simulate_data_poisson(func = true_f, n = n, sigma = 0.5, region = c(0,10), offset = 2, spacing = "equal")
 
-par(mfrow = c(1,1))
+## ## Runtime of the exact method:
+## result_exact <- microbenchmark::microbenchmark(
+##   fit_exact(data, prior_SD),
+##   times = num_replicate
+## )
+## runtime_exact <- result_exact$time/1e9
+## 
+## ## Runtime of the approximate method:
+## runtime_approx <- matrix(NA, nrow = length(k_vec), ncol = num_replicate)
+## for (i in 1:length(k_vec)){
+##   result_approx <- microbenchmark::microbenchmark(
+##     BayesGP::model_fit(y ~ f(x, model = "sgp", freq = 1/2,
+##                                     k = k_vec[i],
+##                                     range = c(0, 10),
+##                                     sd.prior = list(param = 1, h = 1)) +
+##                               f(index, model = "iid", sd.prior = 1),
+##                               data = data,
+##                               family = "Poisson"),
+##     times = num_replicate
+##   )
+##   runtime_approx[i, ] <- result_approx$time/1e9
+## }
+## save(runtime_exact, runtime_approx, file = "output/runtime_FEM_convergence_n1000.RData")
 
+load("output/runtime_FEM_convergence_n1000.RData")
+runtime_df <- data.frame(num_basis = num_basis, time = rowMeans(runtime_approx)/mean(runtime_exact))
+ggplot(runtime_df, aes(x = num_basis, y = time)) +
+  geom_point() +
+  geom_line() +
+  labs(x = "Number of Basis Functions", y = "Relative Runtime") +
+  theme_minimal()
 
-u_vec = c(2, 1, 0.5, 0.1, 0.05, 0.03, 0.01, 0.005)
-model_list <- list()
+load("output/runtime_FEM_convergence_n500.RData")
+runtime_df500 <- data.frame(num_basis = num_basis, time = rowMeans(runtime_approx)/mean(runtime_exact))
+runtime_df500$n <- rep(500, length(num_basis))
+load("output/runtime_FEM_convergence_n1000.RData")
+runtime_df1000 <- data.frame(num_basis = num_basis, time = rowMeans(runtime_approx)/mean(runtime_exact))
+runtime_df1000$n <- rep(1000, length(num_basis))
+runtime_df_combined <- rbind(runtime_df500, runtime_df1000)
 
-for (i in 1:length(u_vec)) {
-  mod <- BayesGP::model_fit(
-    y ~ f(
-      x,
-      model = "sgp",
-      region = c(0,10),
-      freq = 2,
-      k = 12,
-      sd.prior = list(param = list(u = u_vec[i], alpha = 0.5), h = 1)
-    ) +
-      f(index, model = "iid", sd.prior = 1),
-    data = data,
-    family = "Poisson"
-  )
-  model_list[[i]] <- mod
-}
-
-first_moments <- matrix(nrow = length(location_of_interest), ncol = length(model_list))
-second_moments <- matrix(nrow = length(location_of_interest), ncol = length(model_list))
-for (i in 1:length(model_list)) {
-  mod <- model_list[[i]]
-  post_samples <- predict(mod, 
-                          newdata = data.frame(x = location_of_interest),
-                          variable = "x",
-                          only.samples = T,
-                          include.intercept = F)
-  first_moments[,i] <- apply(post_samples, 1, mean)
-  second_moments[,i] <- apply(post_samples^2, 1, mean)
-}
-
-matplot(location_of_interest, first_moments, 
-        type = "l", col = 1:length(u_vec), lwd = 1, lty = 1:length(u_vec), 
-        ylim = c(min(first_moments), max(first_moments) + 5), 
-        ylab = "first moment", xlab = "x")
-legend("topright", legend = u_vec, col = 1:length(u_vec), lty = 1:length(u_vec))
-
-matplot(location_of_interest, second_moments,
-        type = "l", col = 1:length(u_vec), lwd = 1, lty = 1:length(u_vec), 
-        ylim = c(min(second_moments), max(second_moments) + 0), 
-        ylab = "second moment", xlab = "x")
-legend("topright", legend = u_vec, col = 1:length(u_vec), lty = 1:length(u_vec))
-
-
-alpha_0.05 <- assess_sensitivity_u_given_alpha(u_vec, 0.05, data = data, location_of_interest = location_of_interest, true_f = true_f, freq = 2)
-alpha_0.1 <- assess_sensitivity_u_given_alpha(u_vec, 0.1, data = data, location_of_interest = location_of_interest, true_f = true_f, freq = 2)
-alpha_0.3 <- assess_sensitivity_u_given_alpha(u_vec, 0.3, data = data, location_of_interest = location_of_interest, true_f = true_f, freq = 2)
-alpha_0.5 <- assess_sensitivity_u_given_alpha(u_vec, 0.5, data = data, location_of_interest = location_of_interest, true_f = true_f, freq = 2)
-
-save(alpha_0.05, alpha_0.1, alpha_0.3, alpha_0.5, file = "output/sensitivity_u_alpha_hard.RData")
-
-
-
-load("output/sensitivity_u_alpha_hard.RData")
-true_f_vec <- true_f(location_of_interest)
-pdf(file = "output/figures/sensitivity_u_alpha_hard_mse.pdf", width = 5, height = 5)
-
-plot(alpha_0.05$u, sqrt(alpha_0.05$mse), type = "l", 
-     log = "x",
-     col = 1, lwd = 2, xlab = "u", 
-     lty = 1, 
-     ylim = c(0.1,1),
-     xaxt = "n",
-     ylab = "rMSE",
-     cex.lab = 1.2, 
-     font.lab = 2,
-     font = 2, 
-     cex.axis = 1.2)
-axis(1, at = c(0.005, 0.01, 0.05, 0.1, 0.5, 1, 2),
-     cex.axis = 1.2, font.axis = 2,
-     labels = c("0.005", "0.01", "0.05", "0.1", "0.5", "1", "2"))
-lines(alpha_0.1$u, sqrt(alpha_0.1$mse), col = 2, lwd = 2, lty = 2)
-lines(alpha_0.3$u, sqrt(alpha_0.3$mse), col = 3, lwd = 2, lty = 3)
-lines(alpha_0.5$u, sqrt(alpha_0.5$mse), col = 4, lwd = 2, lty = 4)
-legend("topright", title = "Prob", legend = c(0.05, 0.1, 0.3, 0.5), col = 1:4, lty = 1:4, lwd = 2, text.font = 2, title.cex = 1.2, cex = 1.2)
-
-dev.off()
-
-
-
-pdf(file = "output/figures/sensitivity_u_alpha_hard_cov.pdf", width = 5, height = 5)
-
-plot(alpha_0.05$u, alpha_0.05$coverage, type = "l", 
-     log = "x",
-     ylim = c(0.2, 1),
-     col = 1, lwd = 2, xlab = "u", 
-     lty = 1,
-     xaxt = "n",
-     ylab = "Coverage Rate",
-     cex.lab = 1.2,  # Adjust axis label size
-     font.lab = 2,   # Bold axis labels
-     font = 2,       # Bold text in plot
-     cex.axis = 1.2) # Adjust axis tick size
-
-# Customize x-axis ticks
-axis(1, at = c(0.005, 0.01, 0.05, 0.1, 0.5, 1, 2), 
-     labels = c("0.005", "0.01", "0.05", "0.1", "0.5", "1", "2"),
-     cex.axis = 1.2,  # Adjust tick label size
-     font.axis = 2)   # Bold tick labels
-
-# Add lines
-lines(alpha_0.1$u, alpha_0.1$coverage, col = 2, lwd = 2, lty = 2)
-lines(alpha_0.3$u, alpha_0.3$coverage, col = 3, lwd = 2, lty = 3)
-lines(alpha_0.5$u, alpha_0.5$coverage, col = 4, lwd = 2, lty = 4)
-
-# Add horizontal line at 0.95
-abline(h = 0.95, col = "purple", lty = 5)
-
-# Add legend
-legend("bottomright", 
-       legend = c(0.05, 0.1, 0.3, 0.5), 
-       col = 1:4, 
-       lty = 1:4, 
-       lwd = 2,
-       text.font = 2,    # Bold legend text
-       title = "Prob",   # Add legend title
-       title.cex = 1.2,  # Adjust legend title size
-       cex = 1.2)        # Adjust legend text size
-
-dev.off()
+ggplot(runtime_df_combined, aes(x = num_basis, y = time, color = factor(n))) +
+  geom_point() +
+  geom_line() +
+  labs(x = "Number of Basis Functions", y = "Relative Runtime %") +
+  theme_minimal() +
+  theme(
+    legend.title = element_blank(),
+    legend.position = c(0.7, 0.7), 
+    axis.title = element_text(size = 14), # Axis labels text size
+    axis.text = element_text(size = 14, face = "bold"),  # Axis breaks text size
+    legend.text = element_text(size = 15), # Legend labels text size
+  ) +
+  scale_color_discrete(labels = c("n = 500", "n = 1000"))
+ggsave("output/figures/runtime_FEM_convergence.pdf", width = 5, height = 5)

@@ -128,8 +128,6 @@ runtime_df <- data.frame(n = n_vec, time = rowMeans(runtime), k = 30)
 ggplot(runtime_df, aes(x = n, y = time)) +
   geom_point() +
   geom_line() +
-  # scale_x_log10() +
-  # scale_y_log10() +
   labs(x = "Number of Observations", y = "Runtime (s)") +
   theme_minimal()
 
@@ -231,7 +229,7 @@ Fit the approximate models with different number of basis functions:
 ```{r}
 samps_approx_df_list <- list()
 k_vec <- c(4, 5, 6, 7, 8, 9, 10, 12, 17, 22, 27, 32, 37)
-num_basis <- 3*(k_vec -2)
+num_basis <- 3*(k_vec - 2)
 ```
 
 ```{r eval=FALSE}

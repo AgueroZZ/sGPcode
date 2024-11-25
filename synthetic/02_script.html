@@ -475,7 +475,6 @@ different <code>alpha</code></p>
 <pre class="r"><code>load(&quot;output/sensitivity_u_alpha_easy.RData&quot;)
 true_f_vec &lt;- true_f(location_of_interest)
 pdf(file = &quot;output/figures/sensitivity_u_alpha_easy_mse.pdf&quot;, width = 5, height = 5)
-
 plot(alpha_0.05$u, sqrt(alpha_0.05$mse), type = &quot;l&quot;, 
      log = &quot;x&quot;,
      col = 1, lwd = 2, xlab = &quot;u&quot;, 
@@ -494,7 +493,6 @@ lines(alpha_0.1$u, sqrt(alpha_0.1$mse), col = 2, lwd = 2, lty = 2)
 lines(alpha_0.3$u, sqrt(alpha_0.3$mse), col = 3, lwd = 2, lty = 3)
 lines(alpha_0.5$u, sqrt(alpha_0.5$mse), col = 4, lwd = 2, lty = 4)
 legend(&quot;topright&quot;, title = &quot;Prob&quot;, legend = c(0.05, 0.1, 0.3, 0.5), col = 1:4, lty = 1:4, lwd = 2, text.font = 2, title.cex = 1.2, cex = 1.2)
-
 dev.off()</code></pre>
 <pre><code>## quartz_off_screen 
 ##                 2</code></pre>
@@ -510,21 +508,17 @@ plot(alpha_0.05$u, alpha_0.05$coverage, type = &quot;l&quot;,
      font.lab = 2,   # Bold axis labels
      font = 2,       # Bold text in plot
      cex.axis = 1.2) # Adjust axis tick size
-     
 # Customize x-axis ticks
 axis(1, at = c(0.005, 0.01, 0.05, 0.1, 0.5, 1, 2), 
      labels = c(&quot;0.005&quot;, &quot;0.01&quot;, &quot;0.05&quot;, &quot;0.1&quot;, &quot;0.5&quot;, &quot;1&quot;, &quot;2&quot;),
      cex.axis = 1.2,  # Adjust tick label size
      font.axis = 2)   # Bold tick labels
-
 # Add lines
 lines(alpha_0.1$u, alpha_0.1$coverage, col = 2, lwd = 2, lty = 2)
 lines(alpha_0.3$u, alpha_0.3$coverage, col = 3, lwd = 2, lty = 3)
 lines(alpha_0.5$u, alpha_0.5$coverage, col = 4, lwd = 2, lty = 4)
-
 # Add horizontal line at 0.95
 abline(h = 0.95, col = &quot;purple&quot;, lty = 5)
-
 # Add legend
 legend(&quot;bottomright&quot;, 
        legend = c(0.05, 0.1, 0.3, 0.5), 
@@ -535,7 +529,49 @@ legend(&quot;bottomright&quot;,
        title = &quot;Prob&quot;,   # Add legend title
        title.cex = 1.2,  # Adjust legend title size
        cex = 1.2)        # Adjust legend text size
+dev.off()</code></pre>
+<pre><code>## quartz_off_screen 
+##                 2</code></pre>
+<p>Eventually different <code>alpha</code> can still be written into
+different choices of <code>u</code> in the prior since the exponential
+distribution is characterized by a single parameter.</p>
+<pre class="r"><code>load(&quot;output/sensitivity_u_alpha_easy.RData&quot;)
+true_f_vec &lt;- true_f(location_of_interest)
+alpha_0.05$median &lt;- convert_prior_median(alpha_0.05$u, 0.05)
+alpha_0.1$median &lt;- convert_prior_median(alpha_0.1$u, 0.1)
+alpha_0.3$median &lt;- convert_prior_median(alpha_0.3$u, 0.3)
+alpha_0.5$median &lt;- convert_prior_median(alpha_0.5$u, 0.5)
 
+# merge them into a dataframe with mse, coverage and median
+sensitivity_df &lt;- rbind(alpha_0.05, alpha_0.1, alpha_0.3, alpha_0.5)
+sensitivity_df &lt;- sensitivity_df %&gt;% arrange(median)
+  
+pdf(file = &quot;output/figures/sensitivity_median_easy_mse.pdf&quot;, width = 5, height = 5)
+plot(sensitivity_df$median, sqrt(sensitivity_df$mse), type = &quot;l&quot;, 
+     log = &quot;x&quot;,
+     col = 1, lwd = 2, xlab = &quot;median&quot;, 
+     lty = 1, 
+     ylim = c(0.05,0.2),
+     ylab = &quot;rMSE&quot;,
+     cex.lab = 1.2, 
+     font.lab = 2,
+     font = 2, 
+     cex.axis = 1.2)
+dev.off()</code></pre>
+<pre><code>## quartz_off_screen 
+##                 2</code></pre>
+<pre class="r"><code>pdf(file = &quot;output/figures/sensitivity_median_easy_cov.pdf&quot;, width = 5, height = 5)
+plot(sensitivity_df$median, sensitivity_df$coverage, type = &quot;l&quot;, 
+     log = &quot;x&quot;,
+     ylim = c(0.2, 1),
+     col = 1, lwd = 2, xlab = &quot;median&quot;, 
+     lty = 1,
+     ylab = &quot;Coverage Rate&quot;,
+     cex.lab = 1.2,  # Adjust axis label size
+     font.lab = 2,   # Bold axis labels
+     font = 2,       # Bold text in plot
+     cex.axis = 1.2) # Adjust axis tick size
+abline(h = 0.95, col = &quot;purple&quot;, lty = 5)
 dev.off()</code></pre>
 <pre><code>## quartz_off_screen 
 ##                 2</code></pre>
@@ -695,6 +731,49 @@ legend(&quot;bottomright&quot;,
        title.cex = 1.2,  # Adjust legend title size
        cex = 1.2)        # Adjust legend text size
 
+dev.off()</code></pre>
+<pre><code>## quartz_off_screen 
+##                 2</code></pre>
+<p>Eventually different <code>alpha</code> can still be written into
+different choices of <code>u</code> in the prior since the exponential
+distribution is characterized by a single parameter.</p>
+<pre class="r"><code>load(&quot;output/sensitivity_u_alpha_hard.RData&quot;)
+true_f_vec &lt;- true_f(location_of_interest)
+alpha_0.05$median &lt;- convert_prior_median(alpha_0.05$u, 0.05)
+alpha_0.1$median &lt;- convert_prior_median(alpha_0.1$u, 0.1)
+alpha_0.3$median &lt;- convert_prior_median(alpha_0.3$u, 0.3)
+alpha_0.5$median &lt;- convert_prior_median(alpha_0.5$u, 0.5)
+
+# merge them into a dataframe with mse, coverage and median
+sensitivity_df &lt;- rbind(alpha_0.05, alpha_0.1, alpha_0.3, alpha_0.5)
+sensitivity_df &lt;- sensitivity_df %&gt;% arrange(median)
+
+pdf(file = &quot;output/figures/sensitivity_median_hard_mse.pdf&quot;, width = 5, height = 5)
+plot(sensitivity_df$median, sqrt(sensitivity_df$mse), type = &quot;l&quot;, 
+     log = &quot;x&quot;,
+     col = 1, lwd = 2, xlab = &quot;median&quot;, 
+     lty = 1, 
+     ylim = c(0.1,1),
+     ylab = &quot;rMSE&quot;,
+     cex.lab = 1.2, 
+     font.lab = 2,
+     font = 2, 
+     cex.axis = 1.2)
+dev.off()</code></pre>
+<pre><code>## quartz_off_screen 
+##                 2</code></pre>
+<pre class="r"><code>pdf(file = &quot;output/figures/sensitivity_median_hard_cov.pdf&quot;, width = 5, height = 5)
+plot(sensitivity_df$median, sensitivity_df$coverage, type = &quot;l&quot;, 
+     log = &quot;x&quot;,
+     ylim = c(0.2, 1),
+     col = 1, lwd = 2, xlab = &quot;median&quot;, 
+     lty = 1,
+     ylab = &quot;Coverage Rate&quot;,
+     cex.lab = 1.2,  # Adjust axis label size
+     font.lab = 2,   # Bold axis labels
+     font = 2,       # Bold text in plot
+     cex.axis = 1.2) # Adjust axis tick size
+abline(h = 0.95, col = &quot;purple&quot;, lty = 5)
 dev.off()</code></pre>
 <pre><code>## quartz_off_screen 
 ##                 2</code></pre>
